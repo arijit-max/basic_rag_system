@@ -10,3 +10,6 @@ chromadb==1.5.9
 sentence-transformers==5.7.0
 langchain-huggingface==1.2.2
 langchain-experimental==0.1.2
+unstructured[pdf]
+pytesseract
+python-magic-bin
