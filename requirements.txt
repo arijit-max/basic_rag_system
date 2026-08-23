@@ -16,3 +16,4 @@ pytesseract
 python-magic-bin
 huggingface_hub>=0.30.0
 pdf2image
+openai>=1.0.0

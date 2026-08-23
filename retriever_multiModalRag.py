@@ -3,16 +3,17 @@ import os
 from typing import Any, Dict, List, Tuple
 
 from dotenv import load_dotenv
-from huggingface_hub import InferenceClient
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
+from openai import OpenAI
 
 load_dotenv()
 
-HF_TOKEN = os.getenv("HF_TOKEN")
-PERSIST_DIRECTORY = "vector_store"
+OPENCODE_API_KEY = os.getenv("OPENCODE_API_KEY")
+PERSIST_DIRECTORY = "multimodalrag_vector"
 EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
-GENERATION_MODEL = "Qwen/Qwen2.5-VL-7B-Instruct"
+GENERATION_MODEL = "mimo-v2.5"
+OPENCODE_BASE_URL = "https://opencode.ai/zen/go/v1"
 
 
 def create_retriever(
@@ -26,11 +27,11 @@ def create_retriever(
         )
 
     embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-    vector_store = Chroma(
+    multimodalrag_vector = Chroma(
         persist_directory=persist_directory,
         embedding_function=embeddings,
     )
-    return vector_store.as_retriever(search_kwargs={"k": k})
+    return multimodalrag_vector.as_retriever(search_kwargs={"k": k})
 
 
 def retrieve_documents(query: str, retriever, k: int = 3):
@@ -76,9 +77,9 @@ def build_context(documents) -> Tuple[str, List[str]]:
 
 
 def answer_query(query: str, documents) -> str:
-    """Generate a grounded answer with the Hugging Face vision-language model."""
-    if not HF_TOKEN:
-        raise ValueError("HF_TOKEN is not set in the environment")
+    """Generate a grounded answer with OpenCode's multimodal model."""
+    if not OPENCODE_API_KEY:
+        raise ValueError("OPENCODE_API_KEY is not set in the environment")
 
     context, images = build_context(documents)
     prompt = f"""Answer the user's question using only the retrieved context below.
@@ -100,15 +101,18 @@ Give a concise, accurate answer and mention relevant figures or table values whe
                 "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
             }
         )
-
-    client = InferenceClient(token=HF_TOKEN)
+    client = OpenAI(
+        api_key=OPENCODE_API_KEY,
+        base_url=OPENCODE_BASE_URL,
+    )
     response = client.chat.completions.create(
         model=GENERATION_MODEL,
         messages=[{"role": "user", "content": message_content}],
         temperature=0.2,
         max_tokens=1000,
     )
-    return response.choices[0].message.content or "No answer was generated."
+    message = response.choices[0].message
+    return message.content or "No answer was generated."
 
 
 def main() -> None:

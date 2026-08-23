@@ -6,14 +6,16 @@ from unstructured. chunking. title import chunk_by_title
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
 from dotenv import load_dotenv
-from huggingface_hub import InferenceClient
+from openai import OpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
 import os
 
 load_dotenv()
 
-HF_TOKEN = os.getenv("HF_TOKEN")
+OPENCODE_API_KEY = os.getenv("OPENCODE_API_KEY")
 FILE_PATH = os.getenv("FILE_PATH")
+OPENCODE_BASE_URL = "https://opencode.ai/zen/go/v1"
+GENERATION_MODEL = "mimo-v2.5"
 
 # ==============================================================================
 # Step 1: Load the PDF and partition it into chunks by unstructured library 
@@ -91,11 +93,13 @@ def create_ai_enhanced_summary(text:str, tables: List[str], images: List[str]) -
         Create AI enhanced summary for mixed content
     """
     try:
-        if not HF_TOKEN:
-            raise ValueError("HF_TOKEN is not set in the environment")
+        if not OPENCODE_API_KEY:
+            raise ValueError("OPENCODE_API_KEY is not set in the environment")
 
-        client = InferenceClient(token=HF_TOKEN)
-        model = "Qwen/Qwen2.5-VL-7B-Instruct"
+        client = OpenAI(
+            api_key=OPENCODE_API_KEY,
+            base_url=OPENCODE_BASE_URL,
+        )
         prompt_text = f"""
         You are creating a searchable description for document content retrieval.
         CONTENT TO ANALYZE:
@@ -112,7 +116,7 @@ def create_ai_enhanced_summary(text:str, tables: List[str], images: List[str]) -
         1. Key facts, numbers and data points from text and tables
         2. Main topics and concepts discussed
         3. Questions this content could answer
-        4. Visual content analysis (charts, diagrams, patterns in images)
+        4. Visual content analysis (charts, diagrams, and patterns in images)
         5. Alternative search terms users might use
 
         Make it detailed and searchable - prioritize findability over brevity.
@@ -125,14 +129,16 @@ def create_ai_enhanced_summary(text:str, tables: List[str], images: List[str]) -
                 "type": "image_url",
                 "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}
             })
-        response = client.chat_completion(
-            model=model,
+
+        response = client.chat.completions.create(
+            model=GENERATION_MODEL,
             messages=[{"role": "user", "content": message_content}],
             temperature=0.2,
             max_tokens=1200,
         )
 
-        return response.choices[0].message.content or text
+        answer = response.choices[0].message.content
+        return answer or text
     except Exception as e:
         print(f"AI summary generation failed: {e}")
         return text
@@ -192,7 +198,7 @@ def summarise_chunks(chunks):
 # Step 4: Storing chunks in vector DB
 # ==============================================================================
 
-def create_vector_store(documents, persist_directory="vector_store"):
+def create_vector_store(documents, persist_directory="multimodalrag_vector"):
     """Create and persist ChromaDB vector store"""
     print(" Creating embeddings and storing in ChromaDB ... ")
 
