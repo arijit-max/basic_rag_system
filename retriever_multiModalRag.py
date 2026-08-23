@@ -1,7 +1,6 @@
 import json
 import os
 from typing import Any, Dict, List, Tuple
-
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
